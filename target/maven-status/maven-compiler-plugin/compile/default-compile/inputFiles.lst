@@ -1,0 +1,4 @@
+/mnt/c/Users/singp/OneDrive/Desktop/CICD/Midterm_CI_with_Git_and_Jenkins/CICD_CI-Pipeline/src/main/java/com/example/bookservice/BookServiceApplication.java
+/mnt/c/Users/singp/OneDrive/Desktop/CICD/Midterm_CI_with_Git_and_Jenkins/CICD_CI-Pipeline/src/main/java/com/example/bookservice/model/Book.java
+/mnt/c/Users/singp/OneDrive/Desktop/CICD/Midterm_CI_with_Git_and_Jenkins/CICD_CI-Pipeline/src/main/java/com/example/bookservice/repository/BookRepository.java
+/mnt/c/Users/singp/OneDrive/Desktop/CICD/Midterm_CI_with_Git_and_Jenkins/CICD_CI-Pipeline/src/main/java/com/example/bookservice/controller/BookController.java
