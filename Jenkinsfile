@@ -2,14 +2,16 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven399'  // Changed from 'Maven 3.9.9' to 'Maven399'
-        jdk 'JDK17'      // Changed from 'JDK 17' to 'JDK17'
+        maven 'Maven399'
+        jdk 'JDK17'
     }
 
     environment {
         DOCKER_CREDENTIALS = credentials('docker-credentials')
-        APP_PORT = '8081'
+        DOCKER_IMAGE = 'priya21sin/book-service:PS1'
         CONTAINER_NAME = 'book-service'
+        HOST_PORT = '8081'
+        CONTAINER_PORT = '8080'
     }
 
     stages {
@@ -41,7 +43,7 @@ pipeline {
             steps {
                 script {
                     // Build the Docker image
-                    bat "docker build -t ${DOCKER_CREDENTIALS_USR}/book-service:PS1 ."
+                    bat "docker build -t ${DOCKER_IMAGE} ."
                     
                     // Login to Docker Hub
                     withCredentials([usernamePassword(credentialsId: 'docker-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
@@ -49,7 +51,7 @@ pipeline {
                     }
                     
                     // Push the image
-                    bat "docker push ${DOCKER_CREDENTIALS_USR}/book-service:PS1"
+                    bat "docker push ${DOCKER_IMAGE}"
                 }
             }
         }
@@ -57,26 +59,32 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    try {
-                        // Stop and remove existing container
-                        bat '''
-                            docker stop book-service || true
-                            docker rm book-service || true
-                        '''
+                    // Clean up existing container
+                    bat """
+                        @echo off
+                        echo Cleaning up existing container...
+                        docker ps -a -f name=${CONTAINER_NAME} -q > temp.txt
+                        set /p CONTAINER_ID=<temp.txt
+                        if defined CONTAINER_ID (
+                            echo Stopping container %CONTAINER_ID%...
+                            docker stop %CONTAINER_ID%
+                            echo Removing container %CONTAINER_ID%...
+                            docker rm %CONTAINER_ID%
+                        )
+                        del temp.txt
+                    """
+
+                    // Deploy new container
+                    bat """
+                        echo Deploying new container...
+                        docker run -d --name ${CONTAINER_NAME} -p ${HOST_PORT}:${CONTAINER_PORT} ${DOCKER_IMAGE}
                         
-                        // Run new container
-                        bat """
-                            docker run -d --name book-service -p 8081:8080 ${DOCKER_CREDENTIALS_USR}/book-service:PS1
-                            
-                            :: Wait using ping instead of timeout
-                            ping -n 10 127.0.0.1 >nul
-                            
-                            :: Verify container is running
-                            docker ps | findstr book-service || exit 1
-                        """
-                    } catch (Exception e) {
-                        error "Deployment failed: ${e.message}"
-                    }
+                        echo Waiting for container to start...
+                        ping -n 10 127.0.0.1 >nul
+                        
+                        echo Verifying container status...
+                        docker ps -f name=${CONTAINER_NAME} --format "{{.Status}}"
+                    """
                 }
             }
         }
@@ -84,32 +92,33 @@ pipeline {
         stage('Verify Deployment') {
             steps {
                 script {
-                    try {
-                        // Wait using ping
-                        bat "ping -n 20 127.0.0.1 >nul"
-                        
-                        // Test GET all books
-                        bat '''
-                            curl -f http://localhost:8081/api/books
-                            if %ERRORLEVEL% NEQ 0 (
-                                echo "GET all books failed"
-                                exit 1
-                            )
-                        '''
-                        
-                        // Test GET specific book
-                        bat '''
-                            curl -f http://localhost:8081/api/books/1
-                            if %ERRORLEVEL% NEQ 0 (
-                                echo "GET specific book failed"
-                                exit 1
-                            )
-                        '''
-                        
-                        echo "API verification successful!"
-                    } catch (Exception e) {
-                        error "API verification failed: ${e.message}"
-                    }
+                    // Wait for application to be ready
+                    bat "echo Waiting for application to start..."
+                    bat "ping -n 20 127.0.0.1 >nul"
+
+                    // Verify container is running
+                    bat """
+                        echo Verifying container status...
+                        docker ps -f name=${CONTAINER_NAME} -q > status.txt
+                        set /p RUNNING=<status.txt
+                        if not defined RUNNING (
+                            echo Container is not running
+                            exit 1
+                        )
+                        del status.txt
+                        echo Container is running successfully
+                    """
+
+                    // Test API endpoints
+                    bat """
+                        echo Testing API endpoints...
+                        curl -f -s http://localhost:${HOST_PORT}/api/books
+                        if %ERRORLEVEL% NEQ 0 (
+                            echo API test failed
+                            exit 1
+                        )
+                        echo API is responding successfully
+                    """
                 }
             }
         }
@@ -117,15 +126,29 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline completed successfully!'
+            echo """
+                =========================================
+                Pipeline completed successfully!
+                Container: ${CONTAINER_NAME}
+                Port: ${HOST_PORT}
+                API: http://localhost:${HOST_PORT}/api/books
+                =========================================
+            """
         }
         failure {
             script {
-                echo 'Pipeline failed!'
-                bat '''
-                    docker stop book-service || true
-                    docker rm book-service || true
-                '''
+                echo 'Pipeline failed! Cleaning up...'
+                bat """
+                    @echo off
+                    echo Cleaning up containers...
+                    docker ps -a -f name=${CONTAINER_NAME} -q > temp.txt
+                    set /p CONTAINER_ID=<temp.txt
+                    if defined CONTAINER_ID (
+                        docker stop %CONTAINER_ID%
+                        docker rm %CONTAINER_ID%
+                    )
+                    del temp.txt
+                """
             }
         }
         always {
