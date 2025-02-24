@@ -85,6 +85,7 @@ git push origin main
   - Junit
   - GitHub Integration Plugin
   - GitHub API Plugin
+  - Credentials plugin
 
 2. Configure Jenkins Tools:
 - Manage Jenkins → Tools
