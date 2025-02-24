@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven 3.8.4'
+        maven 'Maven 3.9.9'
         jdk 'JDK 17'
     }
 
@@ -49,4 +49,4 @@ pipeline {
             cleanWs()
         }
     }
-} 
+}
