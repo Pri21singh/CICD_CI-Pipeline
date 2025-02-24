@@ -36,7 +36,7 @@ jobs:
         docker push $DOCKER_USERNAME/book-service:latest
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: book-service
         path: target/*.jar
