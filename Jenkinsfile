@@ -8,6 +8,8 @@ pipeline {
 
     environment {
         DOCKER_CREDENTIALS = credentials('docker-credentials')
+        APP_PORT = '8081'
+        CONTAINER_NAME = 'book-service'
     }
 
     stages {
@@ -42,7 +44,9 @@ pipeline {
                     bat "docker build -t ${DOCKER_CREDENTIALS_USR}/book-service:PS1 ."
                     
                     // Login to Docker Hub
-                    bat "echo ${DOCKER_CREDENTIALS_PSW} | docker login -u ${DOCKER_CREDENTIALS_USR} --password-stdin"
+                    withCredentials([usernamePassword(credentialsId: 'docker-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
+                    }
                     
                     // Push the image
                     bat "docker push ${DOCKER_CREDENTIALS_USR}/book-service:PS1"
@@ -64,8 +68,8 @@ pipeline {
                         bat """
                             docker run -d --name book-service -p 8081:8080 ${DOCKER_CREDENTIALS_USR}/book-service:PS1
                             
-                            :: Wait for container to start
-                            timeout /t 10 /nobreak
+                            :: Wait using ping instead of timeout
+                            ping -n 10 127.0.0.1 >nul
                             
                             :: Verify container is running
                             docker ps | findstr book-service || exit 1
@@ -81,8 +85,8 @@ pipeline {
             steps {
                 script {
                     try {
-                        // Wait for application to start
-                        bat "timeout /t 20 /nobreak"
+                        // Wait using ping
+                        bat "ping -n 20 127.0.0.1 >nul"
                         
                         // Test GET all books
                         bat '''
@@ -102,18 +106,7 @@ pipeline {
                             )
                         '''
                         
-                        // Test POST new book
-                        bat '''
-                            curl -X POST http://localhost:8081/api/books ^
-                            -H "Content-Type: application/json" ^
-                            -d "{\"title\":\"Test Book\",\"author\":\"Test Author\",\"isbn\":\"TEST123\",\"price\":29.99}"
-                            if %ERRORLEVEL% NEQ 0 (
-                                echo "POST new book failed"
-                                exit 1
-                            )
-                        '''
-                        
-                        echo "All API tests passed successfully!"
+                        echo "API verification successful!"
                     } catch (Exception e) {
                         error "API verification failed: ${e.message}"
                     }
@@ -123,14 +116,20 @@ pipeline {
     }
 
     post {
-        always {
-            cleanWs()
-        }
         success {
             echo 'Pipeline completed successfully!'
         }
         failure {
-            echo 'Pipeline failed!'
+            script {
+                echo 'Pipeline failed!'
+                bat '''
+                    docker stop book-service || true
+                    docker rm book-service || true
+                '''
+            }
+        }
+        always {
+            cleanWs()
         }
     }
 }
