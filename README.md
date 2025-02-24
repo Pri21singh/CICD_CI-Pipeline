@@ -82,6 +82,9 @@ git push origin main
   - Docker Pipeline
   - Pipeline Utility Steps
   - Git
+  - Junit
+  - GitHub Integration Plugin
+  - GitHub API Plugin
 
 2. Configure Jenkins Tools:
 - Manage Jenkins → Tools
